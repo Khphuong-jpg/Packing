@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PackMaster — Mô phỏng đóng gói đơn hàng</title>
+<style>
+/* ============================================================
+   RESET & BIẾN TOÀN CỤC
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+:root{
+  --bg:#12151a;
+  --panel:#1c2028;
+  --panel2:#232833;
+  --line:#2e3542;
+  --txt:#dfe4ec;
+  --dim:#8b95a7;
+  --accent:#f0a13a;
+  --accent2:#4ea1ff;
+  --ok:#42c98a;
+  --err:#ef5f5f;
+  --card:#c08b52;
+  --card-dark:#9a6b3a;
+  --card-lite:#d9a76a;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  background:var(--bg);color:var(--txt);
+  font-size:14px;user-select:none;-webkit-user-select:none;
+  overscroll-behavior:none;
+}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input{font-family:inherit}
+
+/* ============================================================
+   LAYOUT CHÍNH
+   ============================================================ */
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+header{
+  height:50px;flex:0 0 50px;display:flex;align-items:center;gap:12px;
+  padding:0 12px;background:linear-gradient(180deg,#1e232c,#171b22);
+  border-bottom:1px solid var(--line);z-index:50;
+}
+.logo{font-weight:800;font-size:16px;letter-spacing:.5px;color:var(--accent);white-space:nowrap}
+.logo span{color:var(--txt);font-weight:400;font-size:12px;opacity:.6}
+.hdr-stats{display:flex;gap:14px;margin-left:auto;align-items:center;font-size:12px}
+.hdr-stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
+.hdr-stat b{font-size:14px;color:var(--accent)}
+.hdr-stat small{color:var(--dim);font-size:10px}
+.icon-btn{
+  width:34px;height:34px;border-radius:8px;background:var(--panel2);
+  color:var(--txt);font-size:16px;display:grid;place-items:center;
+  border:1px solid var(--line);transition:.15s;
+}
+.icon-btn:hover{background:#2c3342}
+.icon-btn.off{opacity:.4}
+
+main{
+  flex:1;display:grid;grid-template-columns:236px 1fr 292px;
+  gap:8px;padding:8px;overflow:hidden;min-height:0;
+}
+
+/* ============================================================
+   PANEL CHUNG
+   ============================================================ */
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+}
+.panel-hd{
+  flex:0 0 auto;padding:9px 12px;font-size:11px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;background:#191d24;
+}
+.panel-hd .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.panel-bd{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px;min-height:0}
+.panel-bd::-webkit-scrollbar{width:6px}
+.panel-bd::-webkit-scrollbar-thumb{background:#39404f;border-radius:3px}
+.panel-bd::-webkit-scrollbar-track{background:transparent}
+
+/* ============================================================
+   KHO VẬT LIỆU (TRÁI)
+   ============================================================ */
+.stock-group{margin-bottom:12px}
+.stock-group h4{
+  font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#66707f;
+  margin-bottom:6px;padding-left:2px;
+}
+.stock-item{
+  display:flex;align-items:center;gap:9px;padding:7px 8px;margin-bottom:5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+  cursor:grab;transition:.15s;touch-action:none;
+}
+.stock-item:hover{background:#2a3140;border-color:#3d4759;transform:translateY(-1px)}
+.stock-item:active{cursor:grabbing}
+.stock-item.disabled{opacity:.35;pointer-events:none;filter:grayscale(1)}
+.stock-item.selected{border-color:var(--accent);background:#2e2718;box-shadow:0 0 0 1px var(--accent) inset}
+.si-icon{font-size:19px;width:24px;text-align:center;flex:0 0 auto}
+.si-info{min-width:0;flex:1}
+.si-info b{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.si-info small{display:block;font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ============================================================
+   KHU VỰC BÀN ĐÓNG GÓI (GIỮA)
+   ============================================================ */
+#bench{position:relative;display:flex;flex-direction:column;min-height:0}
+#viewport{
+  flex:1;position:relative;overflow:hidden;border-radius:12px;
+  background:
+    radial-gradient(ellipse at 50% 0%,rgba(255,255,255,.05),transparent 60%),
+    linear-gradient(180deg,#2a3038,#1b2027);
+  border:1px solid var(--line);
+  perspective:1400px;
+}
+#viewport::before{
+  /* bề mặt bàn */
+  content:"";position:absolute;inset:0;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.017) 0 2px,transparent 2px 5px),
+    repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 1px,transparent 1px 4px);
+  pointer-events:none;
+}
+#surface{
+  position:absolute;left:50%;top:50%;width:900px;height:600px;
+  margin-left:-450px;margin-top:-300px;
+  transform-origin:center center;transform-style:preserve-3d;
+}
+
+/* --- Sản phẩm --- */
+#product{
+  position:absolute;left:52px;top:200px;width:136px;height:136px;
+  border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(150deg,#3a4351,#252b36);
+  border:1px solid #4b5567;box-shadow:0 10px 24px rgba(0,0,0,.45);
+  cursor:grab;touch-action:none;transition:transform .3s,box-shadow .3s,opacity .35s;
+  z-index:8;
+}
+#product:hover{transform:translateY(-4px);box-shadow:0 16px 30px rgba(0,0,0,.55)}
+#product .p-emoji{font-size:56px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
+#product .p-qty{
+  position:absolute;top:-8px;right:-8px;background:var(--accent);color:#20160a;
+  font-size:11px;font-weight:800;padding:2px 7px;border-radius:20px;box-shadow:0 2px 6px rgba(0,0,0,.4);
+}
+#product .p-name{
+  position:absolute;bottom:-22px;left:0;right:0;text-align:center;
+  font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#product.wrapped::after{
+  content:"";position:absolute;inset:-7px;border-radius:16px;
+  background:
+    radial-gradient(circle at 12% 18%,rgba(255,255,255,.55) 2.5px,transparent 3px),
+    radial-gradient(circle at 37% 62%,rgba(255,255,255,.45) 2.5px,transparent 3px),
+    radial-gradient(circle at 68% 28%,rgba(255,255,255,.5) 2.5px,transparent 3px),
+    radial-gradient(circle at 84% 74%,rgba(255,255,255,.4) 2.5px,transparent 3px),
+    radial-gradient(circle at 52% 88%,rgba(255,255,255,.45) 2.5px,transparent 3px),
+    radial-gradient(circle at 22% 78%,rgba(255,255,255,.4) 2.5px,transparent 3px),
+    radial-gradient(circle at 78% 12%,rgba(255,255,255,.45) 2.5px,transparent 3px),
+    rgba(210,225,240,.24);
+  background-size:26px 26px,26px 26px,26px 26px,26px 26px,26px 26px,26px 26px,26px 26px,auto;
+  border:2px solid rgba(225,235,250,.35);
+  pointer-events:none;animation:wrapIn .45s ease;
+}
+@keyframes wrapIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+#product.placed{opacity:0;pointer-events:none;transform:scale(.5)}
+
+/* --- Hộp / Túi --- */
+#container{position:absolute;z-index:6;touch-action:none;transition:left .5s cubic-bezier(.34,1.2,.5,1),top .5s cubic-bezier(.34,1.2,.5,1),transform .5s}
+#container.movable{cursor:grab}
+
+.box-shell{position:absolute;inset:0}
+.box-inner{
+  position:absolute;inset:0;border-radius:4px;
+  background:linear-gradient(160deg,#6b4d2c,#4b351c);
+  box-shadow:inset 0 0 26px rgba(0,0,0,.75);
+  border:2px solid var(--card-dark);overflow:hidden;
+}
+.flap{
+  position:absolute;transition:all .5s cubic-bezier(.4,.05,.3,1);
+  background:linear-gradient(150deg,var(--card-lite),var(--card));
+  border:1px solid var(--card-dark);
+  box-shadow:0 4px 10px rgba(0,0,0,.35);
+  cursor:pointer;
+}
+.flap::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(0,0,0,.045) 0 3px,transparent 3px 7px)}
+.flap:hover{filter:brightness(1.14)}
+.flap.f-top{left:0;width:100%;height:50%;top:-50%;border-radius:3px 3px 0 0;transform-origin:bottom center}
+.flap.f-bottom{left:0;width:100%;height:50%;bottom:-50%;border-radius:0 0 3px 3px;transform-origin:top center}
+.flap.f-left{top:0;height:100%;width:32%;left:-32%;border-radius:3px 0 0 3px;transform-origin:right center}
+.flap.f-right{top:0;height:100%;width:32%;right:-32%;border-radius:0 3px 3px 0;transform-origin:left center}
+
+.flap.folded-in{transform:scaleX(.04);opacity:.2;pointer-events:none}
+.flap.f-top.folded{top:0;pointer-events:none}
+.flap.f-bottom.folded{bottom:0;pointer-events:none}
+.flap.f-top.folded,.flap.f-bottom.folded{box-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+/* túi nilon */
+.bag-shell{position:absolute;inset:0}
+.bag-inner{
+  position:absolute;inset:0;border-radius:14px 14px 6px 6px;
+  background:linear-gradient(160deg,rgba(190,215,235,.24),rgba(140,175,205,.14));
+  border:2px solid rgba(200,225,245,.42);
+  box-shadow:inset 0 0 30px rgba(255,255,255,.10),0 8px 22px rgba(0,0,0,.4);
+  backdrop-filter:blur(1px);
+}
+.bag-inner::after{
+  content:"";position:absolute;inset:0;border-radius:12px;
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.10) 0 6px,transparent 6px 22px);
+}
+.bag-mouth{
+  position:absolute;left:6%;right:6%;top:-16px;height:26px;
+  border-radius:8px;background:linear-gradient(180deg,rgba(210,232,250,.5),rgba(160,195,225,.35));
+  border:2px solid rgba(210,232,250,.5);
+  transition:.4s;
+}
+.bag-mouth.sealed{transform:scaleY(.25) translateY(6px);opacity:.65}
+
+/* --- Đường nối / băng keo --- */
+.seam{
+  position:absolute;border-radius:3px;opacity:0;pointer-events:none;
+  border:2px dashed rgba(255,255,255,.4);
+  background:rgba(255,255,255,.05);
+  transition:opacity .25s,background .3s,border-color .3s;
+  z-index:10;
+}
+.seam.active{opacity:1;pointer-events:auto;cursor:crosshair}
+.seam.active:hover{background:rgba(255,220,150,.22);border-color:rgba(255,220,150,.85)}
+.seam.ready{animation:seamPulse 1.5s infinite}
+@keyframes seamPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(240,161,58,.55)}
+  50%{box-shadow:0 0 0 7px rgba(240,161,58,0)}
+}
+.seam.done{
+  opacity:1;pointer-events:none;border:none;border-radius:2px;
+  background:linear-gradient(180deg,rgba(232,240,248,.82),rgba(196,210,224,.72));
+  box-shadow:0 2px 7px rgba(0,0,0,.4),inset 0 0 5px rgba(255,255,255,.6);
+  animation:tapeDrop .35s ease;
+}
+@keyframes tapeDrop{from{transform:scaleY(.1);opacity:0}to{transform:scaleY(1);opacity:1}}
+.seam.done.vertical{background:linear-gradient(90deg,rgba(232,240,248,.82),rgba(196,210,224,.72));animation:tapeDropV .35s ease}
+@keyframes tapeDropV{from{transform:scaleX(.1);opacity:0}to{transform:scaleX(1);opacity:1}}
+.seam-c{left:0;right:0;top:50%;height:20px;margin-top:-10px;z-index:12}
+.seam-l{left:-6px;top:0;bottom:0;width:20px;z-index:11}
+.seam-r{right:-6px;top:0;bottom:0;width:20px;z-index:11}
+
+/* --- Nhãn dán trên hộp --- */
+#labelEl{
+  position:absolute;z-index:14;width:150px;height:96px;border-radius:3px;
+  background:linear-gradient(150deg,#fdfdfb,#e8e6df);
+  border:1px solid #b9b5aa;
+  box-shadow:0 5px 14px rgba(0,0,0,.45);
+  padding:7px 8px;color:#1d1d1d;font-size:8px;line-height:1.35;
+  display:none;pointer-events:none;
+}
+#labelEl .lbl-bars{display:flex;gap:1px;height:24px;margin-bottom:4px}
+#labelEl .lbl-bars i{background:#111;flex:1}
+#labelEl .lbl-row{display:flex;justify-content:space-between;font-weight:700;font-size:8px}
+#labelEl .lbl-addr{font-size:7px;color:#444;margin-top:2px;line-height:1.2}
+
+/* --- Cân điện tử --- */
+#scale{
+  position:absolute;left:678px;top:404px;width:196px;height:152px;
+  border-radius:12px;background:linear-gradient(160deg,#3b424e,#252a33);
+  border:1px solid #4a5261;box-shadow:0 12px 26px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);
+  z-index:5;transition:.2s;
+}
+#scale.drop-hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(240,161,58,.35),0 12px 26px rgba(0,0,0,.5)}
+#scale .scale-pad{
+  position:absolute;left:14px;right:14px;top:12px;height:70px;border-radius:7px;
+  background:linear-gradient(160deg,#585f6d,#3d434e);
+  border:1px solid #666e7d;box-shadow:inset 0 2px 8px rgba(0,0,0,.5);
+}
+#scale .scale-display{
+  position:absolute;left:14px;right:14px;bottom:12px;height:44px;border-radius:7px;
+  background:#0c1216;border:1px solid #2b3a3f;display:flex;align-items:center;
+  justify-content:center;gap:5px;font-family:"Courier New",monospace;
+  color:#4dff9e;font-size:22px;font-weight:700;letter-spacing:1px;
+  text-shadow:0 0 10px rgba(77,255,158,.65);
+}
+#scale .scale-display span{font-size:11px;opacity:.75}
+#scale .scale-lbl{
+  position:absolute;left:0;right:0;bottom:-18px;text-align:center;
+  font-size:10px;color:var(--dim);letter-spacing:1px;
+}
+
+/* --- Gợi ý thả --- */
+.drop-hint{
+  position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;
+  font-size:12px;color:rgba(255,255,255,.55);text-align:center;padding:10px;
+  border-radius:6px;text-shadow:0 2px 6px rgba(0,0,0,.8);
+}
+.drop-hint.hide{display:none}
+
+/* --- Vật liệu đã thêm trong hộp --- */
+.filler-vis{
+  position:absolute;inset:6px;border-radius:3px;pointer-events:none;z-index:9;
+  background:
+    radial-gradient(circle at 20% 30%,rgba(255,255,255,.35) 5px,transparent 6px),
+    radial-gradient(circle at 62% 18%,rgba(255,255,255,.3) 4px,transparent 5px),
+    radial-gradient(circle at 44% 70%,rgba(255,255,255,.3) 5px,transparent 6px),
+    radial-gradient(circle at 80% 60%,rgba(255,255,255,.28) 4px,transparent 5px),
+    radial-gradient(circle at 12% 82%,rgba(255,255,255,.3) 4px,transparent 5px),
+    rgba(240,225,195,.30);
+  background-size:40px 40px,40px 40px,40px 40px,40px 40px,40px 40px,auto;
+  opacity:0;transition:opacity .4s;
+}
+.filler-vis.show{opacity:1}
+
+/* --- Thanh điều khiển góc nhìn --- */
+#viewctl{
+  position:absolute;right:10px;bottom:10px;display:flex;gap:5px;z-index:40;
+  background:rgba(20,24,30,.82);padding:5px;border-radius:10px;border:1px solid var(--line);
+  backdrop-filter:blur(6px);
+}
+#viewctl button{
+  width:30px;height:30px;border-radius:7px;background:var(--panel2);color:var(--txt);
+  font-size:14px;border:1px solid var(--line);display:grid;place-items:center;
+}
+#viewctl button:hover{background:#333c4b}
+
+/* --- Thanh gợi ý bước --- */
+#hintbar{
+  position:absolute;left:10px;top:10px;right:10px;z-index:40;
+  background:rgba(20,24,30,.88);border:1px solid var(--line);border-radius:10px;
+  padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:12.5px;
+  backdrop-filter:blur(6px);box-shadow:0 6px 20px rgba(0,0,0,.4);
+}
+#hintbar .hb-num{
+  flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--accent);
+  color:#1c1206;font-weight:800;font-size:11px;display:grid;place-items:center;
+}
+#hintbar .hb-txt{flex:1;min-width:0}
+#hintbar .hb-txt b{color:var(--accent)}
+#hintbar .hb-btn{
+  flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+  padding:5px 11px;border-radius:7px;font-size:11.5px;font-weight:600;
+}
+#hintbar .hb-btn:hover{background:#333c4b}
+
+/* --- Toolbar dụng cụ --- */
+#toolbar{
+  flex:0 0 auto;display:flex;gap:6px;padding:7px;margin-top:8px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  overflow-x:auto;scrollbar-width:none;
+}
+#toolbar::-webkit-scrollbar{display:none}
+.tool{
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;
+  min-width:62px;padding:7px 8px;border-radius:9px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--txt);transition:.15s;touch-action:none;
+}
+.tool:hover{background:#2c3342;transform:translateY(-2px)}
+.tool .t-icon{font-size:19px;line-height:1}
+.tool .t-name{font-size:9.5px;color:var(--dim);white-space:nowrap}
+.tool.disabled{opacity:.32;pointer-events:none;filter:grayscale(1)}
+.tool.active{border-color:var(--accent);background:#2e2718;box-shadow:0 0 0 1px var(--accent) inset}
+
+/* ============================================================
+   PANEL ĐƠN HÀNG (PHẢI)
+   ============================================================ */
+.order-card{
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:10px;margin-bottom:8px;
+}
+.order-id{font-family:"Courier New",monospace;font-size:13px;font-weight:800;color:var(--accent2);letter-spacing:1px}
+.order-meta{font-size:10.5px;color:var(--dim);margin-top:2px}
+.order-prod{display:flex;gap:10px;align-items:center;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+.order-prod .op-ico{font-size:30px}
+.order-prod .op-txt{min-width:0}
+.order-prod .op-txt b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order-prod .op-txt small{color:var(--dim);font-size:10.5px}
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:9px}
+.spec{background:#161a21;border:1px solid #262d38;border-radius:7px;padding:5px 7px}
+.spec small{display:block;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.spec b{font-size:12px}
+.tag{
+  display:inline-block;font-size:9.5px;padding:2px 7px;border-radius:20px;
+  font-weight:700;letter-spacing:.4px;
+}
+.tag.fragile{background:rgba(239,95,95,.16);color:#ff8b8b;border:1px solid rgba(239,95,95,.35)}
+.tag.normal{background:rgba(66,201,138,.14);color:#5fdda0;border:1px solid rgba(66,201,138,.3)}
+.tag.req{background:rgba(240,161,58,.15);color:#ffc06a;border:1px solid rgba(240,161,58,.35)}
+
+.req-list{list-style:none;font-size:11.5px;margin-top:6px}
+.req-list li{display:flex;gap:6px;padding:3px 0;color:#b9c2d0;line-height:1.35}
+.req-list li::before{content:"•";color:var(--accent);font-weight:800}
+
+/* Bước thực hiện */
+.step{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;
+  font-size:11.5px;color:#7b8595;margin-bottom:3px;transition:.2s;border:1px solid transparent;
+}
+.step .st-dot{
+  flex:0 0 auto;width:16px;height:16px;border-radius:50%;border:1.6px solid #3d4655;
+  display:grid;place-items:center;font-size:9px;font-weight:800;
+}
+.step.current{background:rgba(240,161,58,.09);color:var(--txt);border-color:rgba(240,161,58,.3)}
+.step.current .st-dot{border-color:var(--accent);background:var(--accent);color:#1c1206}
+.step.done{color:#5fdda0}
+.step.done .st-dot{border-color:var(--ok);background:var(--ok);color:#062015}
+.step.optional{opacity:.75}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+#overlay{
+  position:fixed;inset:0;background:rgba(8,10,14,.82);backdrop-filter:blur(5px);
+  display:none;place-items:center;z-index:200;padding:16px;
+}
+#overlay.show{display:grid}
+.modal{
+  background:linear-gradient(180deg,#212630,#191d24);border:1px solid #333c4a;
+  border-radius:16px;width:min(480px,100%);max-height:90vh;overflow-y:auto;
+  box-shadow:0 26px 70px rgba(0,0,0,.75);animation:modalIn .28s cubic-bezier(.3,1.3,.5,1);
+}
+@keyframes modalIn{from{opacity:0;transform:translateY(22px) scale(.96)}to{opacity:1;transform:none}}
+.modal-hd{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.modal-hd h2{font-size:17px;font-weight:800;letter-spacing:.4px}
+.modal-hd p{font-size:11.5px;color:var(--dim);margin-top:3px}
+.modal-bd{padding:14px 18px}
+.modal-ft{padding:12px 18px 16px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  flex:1;min-width:120px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;
+  background:var(--panel2);color:var(--txt);border:1px solid var(--line);transition:.15s;
+}
+.btn:hover{background:#333c4b}
+.btn.primary{background:linear-gradient(180deg,#f2ad4b,#d98b28);color:#231603;border-color:#e59c33}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{background:rgba(239,95,95,.14);color:#ff9a9a;border-color:rgba(239,95,95,.35)}
+
+/* Bảng điểm */
+.score-hero{text-align:center;padding:8px 0 14px}
+.score-rank{
+  font-size:52px;font-weight:900;line-height:1;letter-spacing:2px;
+  background:linear-gradient(180deg,#ffd784,#e09a2c);-webkit-background-clip:text;
+  background-clip:text;color:transparent;filter:drop-shadow(0 4px 14px rgba(240,161,58,.4));
+}
+.score-total{font-size:26px;font-weight:800;margin-top:4px}
+.score-total small{font-size:12px;color:var(--dim);font-weight:400}
+.bar-row{margin-bottom:9px}
+.bar-row .bl{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px}
+.bar-row .bl span{color:var(--dim)}
+.bar-row .bl b{font-weight:700}
+.bar-track{height:7px;border-radius:4px;background:#171b22;overflow:hidden;border:1px solid #252b35}
+.bar-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.3,1,.4,1);width:0}
+
+.check-list{list-style:none;font-size:12px}
+.check-list li{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #262d38;line-height:1.4}
+.check-list li:last-child{border:none}
+.check-list .ci{flex:0 0 auto;width:16px}
+.check-list .ok{color:var(--ok)}
+.check-list .bad{color:var(--err)}
+.check-list .warn{color:var(--accent)}
+
+/* Nhập cân nặng */
+.weight-input{
+  display:flex;gap:8px;margin-top:10px;align-items:center;
+}
+.weight-input input{
+  flex:1;background:#0f1319;border:1px solid #333c4a;border-radius:9px;
+  color:var(--txt);padding:10px 12px;font-size:15px;font-family:"Courier New",monospace;
+  outline:none;text-align:center;letter-spacing:1px;
+}
+.weight-input input:focus{border-color:var(--accent)}
+.weight-input button{
+  padding:10px 16px;border-radius:9px;background:var(--accent);color:#231603;
+  font-weight:800;font-size:13px;
+}
+
+/* ============================================================
+   TOAST & GHOST KÉO
+   ============================================================ */
+#toasts{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:400;
+  display:flex;flex-direction:column;gap:7px;align-items:center;pointer-events:none;
+  width:min(420px,92vw);
+}
+.toast{
+  background:rgba(28,32,40,.97);border:1px solid var(--line);border-left:3px solid var(--accent2);
+  color:var(--txt);padding:9px 14px;border-radius:9px;font-size:12.5px;
+  box-shadow:0 10px 28px rgba(0,0,0,.55);animation:toastIn .25s ease;
+  backdrop-filter:blur(8px);text-align:center;max-width:100%;
+}
+.toast.ok{border-left-color:var(--ok)}
+.toast.err{border-left-color:var(--err)}
+.toast.warn{border-left-color:var(--accent)}
+.toast.out{animation:toastOut .28s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-8px)}}
+
+.drag-ghost{
+  position:fixed;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);
+  background:rgba(35,40,51,.95);border:1px solid var(--accent);border-radius:11px;
+  padding:7px 12px;display:flex;align-items:center;gap:8px;
+  box-shadow:0 14px 34px rgba(0,0,0,.6);font-size:12px;white-space:nowrap;
+}
+.drag-ghost .dg-icon{font-size:20px}
+.drag-ghost .dg-label{font-weight:600}
+
+[data-drop].drop-hover{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+#mobile-tabs{display:none}
+
+@media (max-width:900px){
+  header{height:46px;flex-basis:46px;padding:0 8px;gap:8px}
+  .logo{font-size:13px}
+  .logo span{display:none}
+  .hdr-stat small{display:none}
+  .hdr-stat b{font-size:12px}
+  .hdr-stats{gap:9px}
+
+  main{
+    grid-template-columns:1fr;grid-template-rows:1fr auto;
+    padding:6px;gap:0;overflow:hidden;
+  }
+  #bench{order:1;min-height:0}
+  #toolbar{margin-top:6px;padding:5px}
+  .tool{min-width:54px;padding:6px 6px}
+  .tool .t-name{font-size:8.5px}
+  .tool .t-icon{font-size:17px}
+
+  #stock,#order-panel{display:none;order:2;max-height:44vh;margin-top:6px}
+  body[data-tab="stock"] #stock{display:flex}
+  body[data-tab="order"] #order-panel{display:flex}
+
+  #mobile-tabs{
+    display:flex;gap:6px;padding:6px 6px 8px;flex:0 0 auto;
+  }
+  #mobile-tabs button{
+    flex:1;padding:9px;border-radius:9px;background:var(--panel);border:1px solid var(--line);
+    color:var(--dim);font-size:12px;font-weight:700;
+  }
+  #mobile-tabs button.active{background:#2e2718;border-color:var(--accent);color:var(--accent)}
+  #hintbar{font-size:11.5px;padding:7px 10px;left:7px;right:7px;top:7px}
+  #hintbar .hb-btn{padding:4px 9px;font-size:11px}
+  #viewctl{right:7px;bottom:7px;padding:4px}
+  #viewctl button{width:27px;height:27px;font-size:12px}
+  .modal-bd{padding:12px 14px}
+  .modal-ft{padding:10px 14px 14px}
+}
+</style>
+</head>
+<body data-tab="stock">
+
+<div id="app">
+
+  <!-- ================= HEADER ================= -->
+  <header>
+    <div class="logo">📦 PackMaster <span>· mô phỏng đóng gói</span></div>
+    <div class="hdr-stats">
+      <div class="hdr-stat"><b id="hdr-order">—</b><small>ĐƠN HÀNG</small></div>
+      <div class="hdr-stat"><b id="hdr-time">00:00</b><small>THỜI GIAN</small></div>
+      <div class="hdr-stat"><b id="hdr-score">0</b><small>ĐIỂM</small></div>
+      <button class="icon-btn" id="btn-sound" title="Bật/tắt âm thanh">🔊</button>
+      <button class="icon-btn" id="btn-help" title="Hướng dẫn">❓</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ================= KHO VẬT LIỆU ================= -->
+    <aside class="panel" id="stock">
+      <div class="panel-hd"><span class="dot"></span>Kho vật liệu</div>
+      <div class="panel-bd" id="stock-body"></div>
+    </aside>
+
+    <!-- ================= BÀN ĐÓNG GÓI ================= -->
+    <section id="bench">
+      <div id="viewport">
+        <div id="surface" data-drop="bench">
+          <!-- Cân điện tử -->
+          <div id="scale" data-drop="scale">
+            <div class="scale-pad"></div>
+            <div class="scale-display"><span id="scale-val">0.00</span><span>kg</span></div>
+            <div class="scale-lbl">CÂN ĐIỆN TỬ</div>
+          </div>
+
+          <!-- Sản phẩm -->
+          <div id="product" data-drop="product">
+            <span class="p-emoji" id="p-emoji">📦</span>
+            <span class="p-qty" id="p-qty" style="display:none">×1</span>
+            <span class="p-name" id="p-name"></span>
+          </div>
+
+          <!-- Nhãn vận chuyển -->
+          <div id="labelEl"></div>
+        </div>
+
+        <!-- Gợi ý bước -->
+        <div id="hintbar">
+          <div class="hb-num" id="hb-num">1</div>
+          <div class="hb-txt" id="hb-txt">Chọn hộp hoặc túi phù hợp với sản phẩm</div>
+          <button class="hb-btn" id="hb-skip" style="display:none">Bỏ qua</button>
+        </div>
+
+        <!-- Điều khiển góc nhìn -->
+        <div id="viewctl">
+          <button id="vc-in" title="Phóng to">＋</button>
+          <button id="vc-out" title="Thu nhỏ">－</button>
+          <button id="vc-rot" title="Xoay góc nhìn">🔄</button>
+          <button id="vc-reset" title="Đặt lại">⟲</button>
+        </div>
+      </div>
+
+      <!-- Thanh dụng cụ -->
+      <div id="toolbar"></div>
+    </section>
+
+    <!-- ================= THÔNG TIN ĐƠN ================= -->
+    <aside class="panel" id="order-panel">
+      <div class="panel-hd"><span class="dot"></span>Đơn hàng</div>
+      <div class="panel-bd" id="order-body"></div>
+    </aside>
+  </main>
+
+  <!-- Tab mobile -->
+  <div id="mobile-tabs">
+    <button data-tab="stock" class="active">🧰 Kho</button>
+    <button data-tab="order">📋 Đơn</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<div id="overlay"><div class="modal" id="modal"></div></div>
+
+<script>
+/* ==================================================================
+   PACKMASTER — Mô phỏng đóng gói đơn hàng
+   Toàn bộ logic nằm trong file này. Không cần backend.
+   ================================================================== */
+(function(){
+'use strict';
+
+/* ==================================================================
+   1. DỮ LIỆU TĨNH
+   ================================================================== */
+
+// --- Sản phẩm: size = [dài, rộng, cao] (cm), w = khối lượng (kg)
+const PRODUCTS = [
+  {id:'tshirt',  name:'Áo thun cotton',    icon:'👕', size:[26,19,4],  w:0.28, fragile:false, wrap:false, filler:'low',  bagOk:true,  boxOk:true,  multi:4},
+  {id:'jeans',   name:'Quần jeans',        icon:'👖', size:[30,22,6],  w:0.65, fragile:false, wrap:false, filler:'low',  bagOk:true,  boxOk:true,  multi:3},
+  {id:'book',    name:'Sách bìa cứng',     icon:'📕', size:[24,17,4],  w:0.75, fragile:false, wrap:false, filler:'med',  bagOk:false, boxOk:true,  multi:3},
+  {id:'glass',   name:'Ly thủy tinh',      icon:'🥛', size:[9,9,14],   w:0.35, fragile:true,  wrap:true,  filler:'high', bagOk:false, boxOk:true,  multi:2},
+  {id:'mug',     name:'Cốc sứ cao cấp',    icon:'☕', size:[12,12,11], w:0.45, fragile:true,  wrap:true,  filler:'high', bagOk:false, boxOk:true,  multi:2},
+  {id:'headset', name:'Tai nghe không dây',icon:'🎧', size:[19,18,9],  w:0.32, fragile:true,  wrap:true,  filler:'med',  bagOk:false, boxOk:true,  multi:1},
+  {id:'serum',   name:'Serum dưỡng da',    icon:'🧴', size:[5,5,13],   w:0.18, fragile:true,  wrap:true,  filler:'med',  bagOk:true,  boxOk:true,  multi:2},
+  {id:'perfume', name:'Nước hoa',          icon:'🧪', size:[7,7,14],   w:0.35, fragile:true,  wrap:true,  filler:'high', bagOk:true,  boxOk:true,  multi:1},
+  {id:'laptop',  name:'Laptop 14 inch',    icon:'💻', size:[33,23,3],  w:1.40, fragile:true,  wrap:true,  filler:'high', bagOk:false, boxOk:true,  multi:1},
+  {id:'phone',   name:'Điện thoại',        icon:'📱', size:[16,8,2],   w:0.20, fragile:true,  wrap:true,  filler:'med',  bagOk:false, boxOk:true,  multi:1},
+  {id:'plate',   name:'Đĩa sứ',            icon:'🍽️', size:[26,26,4],  w:0.90, fragile:true,  wrap:true,  filler:'high', bagOk:false, boxOk:true,  multi:2},
+  {id:'shoes',   name:'Giày sneaker',      icon:'👟', size:[32,22,12], w:0.90, fragile:false, wrap:false, filler:'med',  bagOk:false, boxOk:true,  multi:2},
+  {id:'cable',   name:'Cáp sạc nhanh',     icon:'🔌', size:[12,12,3],  w:0.10, fragile:false, wrap:false, filler:'low',  bagOk:true,  boxOk:true,  multi:3},
+  {id:'camera',  name:'Máy ảnh mirrorless',icon:'📷', size:[15,12,9],  w:0.70, fragile:true,  wrap:true,  filler:'high', bagOk:false, boxOk:true,  multi:1},
+  {id:'candle',  name:'Nến thơm',          icon:'🕯️', size:[8,8,10],   w:0.40, fragile:true,  wrap:true,  filler:'high', bagOk:true,  boxOk:true,  multi:2},
+];
+
+// --- Bao bì: inner = [dài, rộng, sâu] (cm)
+const CONTAINERS = [
+  {id:'box-s',  kind:'box', name:'Hộp carton S',  icon:'📦', inner:[18,13,9],  weight:0.14, cost:3000, boxOk:true},
+  {id:'box-m',  kind:'box', name:'Hộp carton M',  icon:'📦', inner:[26,18,13], weight:0.24, cost:4500, boxOk:true},
+  {id:'box-l',  kind:'box', name:'Hộp carton L',  icon:'📦', inner:[35,25,18], weight:0.40, cost:7000, boxOk:true},
+  {id:'bag-s',  kind:'bag', name:'Túi nilon S',   icon:'🛍️', inner:[22,30,8],  weight:0.02, cost:400,  boxOk:false},
+  {id:'bag-m',  kind:'bag', name:'Túi nilon M',   icon:'🛍️', inner:[30,40,10], weight:0.03, cost:700,  boxOk:false},
+  {id:'bbag',   kind:'bag', name:'Túi chống sốc', icon:'🫧', inner:[25,35,10], weight:0.06, cost:1800, boxOk:false},
+];
+
+// --- Vật liệu phụ trợ
+const MATERIALS = {
+  bubble: {id:'bubble', name:'Xốp bong bóng', icon:'🫧', weight:0.06, cost:2000, prot:30, kind:'wrap'},
+  paper:  {id:'paper',  name:'Giấy gói',      icon:'📄', weight:0.04, cost:800,  prot:12, kind:'filler'},
+  foam:   {id:'foam',   name:'Xốp chip',      icon:'🧊', weight:0.10, cost:1500, prot:22, kind:'filler'},
+  tape:   {id:'tape',   name:'Băng keo',      icon:'🩹', weight:0.03, cost:600,  prot:5,  kind:'tool'},
+  label:  {id:'label',  name:'Tem vận chuyển',icon:'🏷️', weight:0.01, cost:200,  prot:0,  kind:'tool'},
+};
+
+/* ==================================================================
+   2. ÂM THANH (WebAudio tổng hợp — không cần file ngoài)
+   ================================================================== */
+let actx = null, soundOn = true;
+
+function AC(){
+  if(!actx){
+    try{ actx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ actx = null; }
+  }
+  if(actx && actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+function noiseBurst(dur, freq, q, vol, type){
+  const ac = AC(); if(!ac || !soundOn) return;
+  const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, n, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const flt = ac.createBiquadFilter();
+  flt.type = type || 'bandpass'; flt.frequency.value = freq; flt.Q.value = q;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0008, ac.currentTime + dur);
+  src.connect(flt); flt.connect(g); g.connect(ac.destination);
+  src.start();
+}
+
+function tone(f, dur, type, vol, slideTo){
+  const ac = AC(); if(!ac || !soundOn) return;
+  dur = dur || 0.12;
+  const o = ac.createOscillator(); o.type = type || 'sine'; o.frequency.value = f;
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol || 0.1, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0008, ac.currentTime + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime + dur + 0.02);
+}
+
+const SFX = {
+  tape(){ noiseBurst(0.38, 2400, 0.7, 0.09); },
+  cut(){ noiseBurst(0.07, 5200, 2.2, 0.16); tone(1900, 0.05, 'square', 0.04, 900); },
+  cardboard(){ noiseBurst(0.13, 480, 1.1, 0.15); tone(115, 0.15, 'sine', 0.07, 68); },
+  place(){ tone(85, 0.24, 'sine', 0.17, 48); noiseBurst(0.11, 320, 1, 0.10); },
+  click(){ tone(720, 0.05, 'square', 0.045); },
+  ok(){ tone(660, 0.09, 'sine', 0.09); setTimeout(()=>tone(990, 0.14, 'sine', 0.09), 85); },
+  err(){ tone(210, 0.22, 'sawtooth', 0.09, 120); },
+  fold(){ noiseBurst(0.16, 950, 1.1, 0.11); tone(200, 0.09, 'sine', 0.04, 140); },
+  wrap(){ noiseBurst(0.42, 3600, 0.6, 0.075); },
+  print(){ noiseBurst(0.5, 1500, 1.5, 0.055, 'lowpass'); },
+  ding(){ tone(880, 0.1, 'sine', 0.08); setTimeout(()=>tone(1320,0.2,'sine',0.07), 95); }
+};
+
+/* ==================================================================
+   3. TIỆN ÍCH
+   ================================================================== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.prototype.slice.call(document.querySelectorAll(s));
+const rand     = (a,b) => Math.random()*(b-a)+a;
+const randInt  = (a,b) => Math.floor(rand(a, b+1));
+const pick     = arr => arr[Math.floor(Math.random()*arr.length)];
+const clamp    = (v,a,b) => Math.max(a, Math.min(b, v));
+const fmt      = n => n.toLocaleString('vi-VN') + 'đ';
+const fmtW     = n => (Math.round(n*100)/100).toFixed(2);
+
+/* ==================================================================
+   4. TRẠNG THÁI GAME
+   ================================================================== */
+const state = {
+  order: null,
+  container: null,     // bản ghi container đang dùng (kèm dispW/dispH)
+  wrapped: false,
+  placed: false,
+  fillers: [],         // ['paper','foam']
+  flaps: [],           // thứ tự nắp đã gấp
+  tapeStrips: 0,
+  tapeNeeded: 0,
+  tapeCut: false,
+  labelDone: false,
+  weighed: false,
+  measuredWeight: 0,
+  filled: false,       // đã hoàn tất / bỏ qua bước filler
+  mistakes: [],        // {msg, time}
+  t0: 0,
+  finished: false,
+  scaled: false,       // đã đặt lên cân (vị trí)
+  cost: 0,
+  orderIndex: 0,
+};
+
+let viewZoom = 1, viewRot = 0;
+let draggedPayload = null;
+
+/* ==================================================================
+   5. KHỞI TẠO ĐƠN HÀNG
+   ================================================================== */
+function makeOrder(){
+  const p = pick(PRODUCTS);
+  const qty = p.multi > 1 ? randInt(1, p.multi) : 1;
+  const totalWeight = +(p.w * qty).toFixed(2);
+
+  // Yêu cầu đóng gói mô tả bằng lời
+  const reqs = [];
+  if(p.wrap) reqs.push('Bọc chống sốc (xốp bong bóng) trước khi đóng gói');
+  if(p.fragile) reqs.push('Sản phẩm DỄ VỠ — cần cố định chắc chắn');
+  if(p.filler === 'high') reqs.push('Cần nhiều vật liệu lấp khoảng trống');
+  else if(p.filler === 'med') reqs.push('Nên thêm vật liệu lấp khoảng trống');
+  if(!p.bagOk) reqs.push('Không đóng túi nilon — phải dùng hộp carton');
+  if(p.bagOk && !p.boxOk) reqs.push('Có thể đóng túi');
+  reqs.push('Dán tem vận chuyển ở mặt trên, không đè lên đường nối');
+
+  // Kích thước hiển thị
+  const dimTxt = p.size[0]+'×'+p.size[1]+'×'+p.size[2]+' cm';
+
+  return {
+    id: 'VN' + randInt(100000, 999999),
+    product: p,
+    qty: qty,
+    weight: totalWeight,
+    dimTxt: dimTxt,
+    reqs: reqs,
+    dest: pick(['Hà Nội','TP. Hồ Chí Minh','Đà Nẵng','Cần Thơ','Hải Phòng','Huế','Nha Trang','Biên Hòa']),
+    created: Date.now()
+  };
+}
+
+/* ==================================================================
+   6. ĐIỀU KHIỂN GÓC NHÌN (zoom / xoay)
+   ================================================================== */
+function applyView(){
+  const vp = $('#viewport');
+  const s = Math.min(vp.clientWidth / 940, vp.clientHeight / 640) * viewZoom;
+  const sf = $('#surface');
+  sf.style.transform = `scale(${Math.max(0.25, s)}) rotateY(${viewRot}deg)`;
+}
+window.addEventListener('resize', applyView);
+
+/* ==================================================================
+   7. HIỂN THỊ — PANEL ĐƠN HÀNG
+   ================================================================== */
+function renderOrder(){
+  const o = state.order;
+  const p = o.product;
+  const fragileTag = p.fragile
+    ? '<span class="tag fragile">DỄ VỠ</span>'
+    : '<span class="tag normal">BÌNH THƯỜNG</span>';
+
+  let html = `
+    <div class="order-card">
+      <div class="order-id">#${o.id}</div>
+      <div class="order-meta">Giao đến: <b>${o.dest}</b></div>
+      <div class="order-prod">
+        <div class="op-ico">${p.icon}</div>
+        <div class="op-txt">
+          <b>${p.name}</b>
+          <small>Số lượng: ×${o.qty}</small>
+        </div>
+      </div>
+      <div style="margin-top:8px">${fragileTag}
+        ${p.wrap ? '<span class="tag req">CẦN BỌC</span>' : ''}
+      </div>
+      <div class="spec-grid">
+        <div class="spec"><small>Kích thước</small><b>${o.dimTxt}</b></div>
+        <div class="spec"><small>Khối lượng</small><b>${fmtW(o.weight)} kg</b></div>
+      </div>
+    </div>
+    <div class="order-card">
+      <div style="font-size:10px;letter-spacing:1px;color:#66707f;margin-bottom:4px">YÊU CẦU ĐÓNG GÓI</div>
+      <ul class="req-list">${o.reqs.map(r=>`<li>${r}</li>`).join('')}</ul>
+    </div>
+    <div class="order-card" id="steps-card">
+      <div style="font-size:10px;letter-spacing:1px;color:#66707f;margin-bottom:6px">QUY TRÌNH</div>
+      <div id="steps-list"></div>
+    </div>
+  `;
+  $('#order-body').innerHTML = html;
+  renderSteps();
+}
+
+/* --- Danh sách bước --- */
+function getSteps(){
+  const p = state.order.product;
+  const isBox = state.container && state.container.kind === 'box';
+  const list = [
+    {id:'container', label:'Chọn bao bì phù hợp'},
+  ];
+  if(p.wrap) list.push({id:'wrap', label:'Bọc chống sốc sản phẩm'});
+  list.push({id:'pack', label:'Đặt sản phẩm vào bao bì'});
+  list.push({id:'fill', label:'Thêm vật liệu lấp khoảng trống', optional:true});
+  if(isBox) list.push({id:'fold', label:'Gấp 4 nắp hộp đúng thứ tự'});
+  list.push({id:'tape', label: isBox ? 'Dán băng keo 3 đường nối' : 'Dán kín miệng túi'});
+  list.push({id:'cut', label:'Cắt băng keo thừa'});
+  list.push({id:'label', label:'Dán tem vận chuyển'});
+  list.push({id:'weigh', label:'Cân & xác nhận khối lượng'});
+  list.push({id:'verify', label:'Kiểm tra & hoàn tất'});
+  return list;
+}
+
+function currentStepId(){
+  const p = state.order.product;
+  const isBox = state.container && state.container.kind === 'box';
+  if(!state.container) return 'container';
+  if(p.wrap && !state.wrapped) return 'wrap';
+  if(!state.placed) return 'pack';
+  if(!state.filled) return 'fill';
+  if(isBox && state.flaps.length < 4) return 'fold';
+  if(state.tapeStrips < state.tapeNeeded) return 'tape';
+  if(!state.tapeCut) return 'cut';
+  if(!state.labelDone) return 'label';
+  if(!state.weighed) return 'weigh';
+  if(!state.finished) return 'verify';
+  return 'done';
+}
+
+function renderSteps(){
+  const steps = getSteps();
+  const cur = currentStepId();
+  const doneMap = {
+    container: !!state.container,
+    wrap: state.wrapped,
+    pack: state.pl aced,
+    fill: state.filled,
+    fold: state.flaps.length >= 4,
+    tape: state.tapeStrips >= state.tapeNeeded,
+    cut: state.tapeCut,
+    label: state.labelDone,
+    weigh: state.weighed,
+    verify: state.finished,
+  };
+  const el = $('#steps-list');
+  if(!el) return;
+  el.innerHTML = steps.map((s,i)=>{
+    const done = doneMap[s.id];
+    const isCur = s.id === cur;
+    const cls = 'step' + (done?' done':'') + (isCur&&!done?' current':'') + (s.optional?' optional':'');
+    return `<div class="${cls}">
+      <div class="st-dot">${done?'✓':(isCur?i+1:'')}</div>
+      <span>${s.label}${s.optional?' <i style="font-style:normal;opacity:.6">(tuỳ chọn)</i>':''}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ==================================================================
+   8. HIỂN THỊ — KHO VẬT LIỆU
+   ================================================================== */
+function renderStock(){
+  const body = $('#stock-body');
+  let html = '<div class="stock-group"><h4>Bao bì</h4>';
+  CONTAINERS.forEach(c=>{
+    const dim = c.inner[0]+'×'+c.inner[1]+'×'+c.inner[2];
+    html += `<div class="stock-item" data-stock="container" data-id="${c.id}">
+      <div class="si-icon">${c.icon}</div>
+      <div class="si-info">
+        <b>${c.name}</b>
+        <small>${dim}cm · ${Math.round(c.weight*1000)}g · ${fmt(c.cost)}</small>
+      </div>
+    </div>`;
+  });
+ html += '</div>';
+
+  html += '<div class="stock-group"><h4>Vật liệu chống sốc</h4>';
+  ['bubble','paper','foam'].forEach(id=>{
+    const m = MATERIALS[id];
+    html += `<div class="stock-item" data-stock="material" data-id="${id}">
+      <div class="si-icon">${m.icon}</div>
+      <div class="si-info">
+        <b>${m.name}</b>
+        <small>+${Math.round(m.weight*1000)}g · ${fmt(m.cost)}</small>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  body.innerHTML = html;
+
+  // Gắn sự kiện kéo cho từng mục kho
+  $$('#stock-body .stock-item').forEach(el=>{
+    el.addEventListener('pointerdown', ev=>{
+      const type = el.dataset.stock;
+      const id = el.dataset.id;
+      if(type === 'container'){
+        const c = CONTAINERS.find(x=>x.id===id);
+        if(!canPickContainer()) return;
+        beginDrag(ev, {type:'container', id:id, icon:c.icon, label:c.name});
+      } else {
+        const m = MATERIALS[id];
+        if(!canUseMaterial(id)) return;
+        beginDrag(ev, {type:'material', id:id, icon:m.icon, label:m.name});
+      }
+    });
+  });
+  refreshStockAvailability();
+}
+
+function refreshStockAvailability(){
+  $$('#stock-body .stock-item').forEach(el=>{
+    const type = el.dataset.stock, id = el.dataset.id;
+    let ok = true;
+    if(type === 'container') ok = canPickContainer();
+    else ok = canUseMaterial(id);
+    el.classList.toggle('disabled', !ok);
+    el.classList.toggle('selected', type==='container' && state.container && state.container.id===id);
+  });
+}
+
+function canPickContainer(){
+  if(state.finished) return false;
+  if(state.placed) return false;
+  return true;
+}
+
+function canUseMaterial(id){
+  if(state.finished) return false;
+  if(id === 'bubble') return !!state.container && !!state.order.product.wrap && !state.wrapped && !state.placed;
+  if(id === 'paper' || id === 'foam') return state.placed && !state.flaps.length && !state.tapeStrips;
+  return false;
+}
+
+/* ==================================================================
+   9. HIỂN THỊ — THANH DỤNG CỤ
+   ================================================================== */
+const TOOLS = [
+  {id:'tape',  name:'Băng keo', icon:'🩹', type:'tool-tape'},
+  {id:'knife', name:'Dao rọc',  icon:'🔪', type:'tool-knife'},
+  {id:'sciss', name:'Kéo',      icon:'✂️', type:'tool-knife'},
+  {id:'label', name:'Tem',      icon:'🏷️', type:'tool-label'},
+  {id:'print', name:'Máy in',   icon:'🖨️', type:'tool-print'},
+];
+
+function renderToolbar(){
+  const tb = $('#toolbar');
+  tb.innerHTML = TOOLS.map(t=>`
+    <button class="tool" data-tool="${t.id}">
+      <span class="t-icon">${t.icon}</span>
+      <span class="t-name">${t.name}</span>
+    </button>`).join('');
+
+  $$('#toolbar .tool').forEach(el=>{
+    const id = el.dataset.tool;
+    el.addEventListener('pointerdown', ev=>{
+      if(!toolEnabled(id)) return;
+      const t = TOOLS.find(x=>x.id===id);
+      if(id === 'print'){ doPrint(); return; }
+      beginDrag(ev, {type:t.type, id:id, icon:t.icon, label:t.name});
+    });
+  });
+  refreshToolbar();
+}
+
+function toolEnabled(id){
+  if(state.finished) return false;
+  if(id === 'tape'){
+    if(!state.placed) return false;
+    if(state.tapeStrips >= state.tapeNeeded) return false;
+    if(state.container.kind === 'box' && state.flaps.length < 4) return false;
+    return true;
+  }
+  if(id === 'knife' || id === 'sciss'){
+    return state.tapeStrips >= state.tapeNeeded && !state.tapeCut;
+  }
+  if(id === 'label'){
+    return state.tapeCut && !state.labelDone;
+  }
+  if(id === 'print'){
+    return state.tapeCut && !state.labelDone;
+  }
+  return true;
+}
+
+function refreshToolbar(){
+  $$('#toolbar .tool').forEach(el=>{
+    el.classList.toggle('disabled', !toolEnabled(el.dataset.tool));
+  });
+}
+
+/* Máy in: hiện nhãn trên bàn (trang trí, nhãn đã sẵn trong toolbar) */
+function doPrint(){
+  SFX.print();
+  toast('🖨️ Đã in tem vận chuyển — kéo tem từ thanh dụng cụ lên hộp.', 'ok', 2600);
+}
+
+/* ==================================================================
+   10. HIỂN THỊ — BÀN ĐÓNG GÓI
+   ================================================================== */
+function renderProduct(){
+  const o = state.order;
+  const p = o.product;
+  $('#p-emoji').textContent = p.icon;
+  $('#p-name').textContent = p.name;
+  const q = $('#p-qty');
+  if(o.qty > 1){ q.style.display = ''; q.textContent = '×' + o.qty; }
+  else q.style.display = 'none';
+
+  const el = $('#product');
+  el.classList.toggle('wrapped', state.wrapped);
+  el.classList.toggle('placed', state.placed);
+}
+
+/* Tạo phần tử bao bì (hộp hoặc túi) */
+function buildContainerEl(){
+  const old = document.getElementById('container');
+  if(old) old.remove();
+  if(!state.container) return;
+
+  const c = state.container;
+  const el = document.createElement('div');
+  el.id = 'container';
+  el.dataset.drop = 'container';
+  el.style.left = (450 - c.dispW/2) + 'px';
+  el.style.top  = (268 - c.dispH/2) + 'px';
+  el.style.width = c.dispW + 'px';
+  el.style.height = c.dispH + 'px';
+  el.style.transformOrigin = 'center center';
+
+  if(c.kind === 'box'){
+    el.innerHTML = `
+      <div class="box-shell">
+        <div class="box-inner"></div>
+        <div class="filler-vis" id="fillerVis"></div>
+        <div class="flap f-left"  data-flap="left"></div>
+        <div class="flap f-right" data-flap="right"></div>
+        <div class="flap f-top"   data-flap="top"></div>
+        <div class="flap f-bottom" data-flap="bottom"></div>
+        <div class="seam seam-c" data-drop="seam" data-seam="c"></div>
+        <div class="seam seam-l" data-drop="seam" data-seam="l"></div>
+        <div class="seam seam-r" data-drop="seam" data-seam="r"></div>
+        <div class="drop-hint" id="dropHint">Thả sản phẩm vào đây</div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="bag-shell">
+        <div class="bag-inner"></div>
+        <div class="filler-vis" id="fillerVis"></div>
+        <div class="bag-mouth" id="bagMouth"></div>
+        <div class="seam seam-c" data-drop="seam" data-seam="c"></div>
+        <div class="drop-hint" id="dropHint">Thả sản phẩm vào đây</div>
+      </div>`;
+  }
+
+  $('#surface').appendChild(el);
+
+  // Sự kiện click nắp hộp
+  if(c.kind === 'box'){
+    el.addEventListener('click', ev=>{
+      const fl = ev.target.closest('[data-flap]');
+      if(fl) foldFlap(fl.dataset.flap);
+    });
+  }
+
+  // Kéo cả kiện hàng (khi đã đóng xong) sang cân
+  el.addEventListener('pointerdown', ev=>{
+    if(!state.tapeCut || state.weighed || state.finished) return;
+    if(ev.target.closest('.seam')) return;
+    beginDrag(ev, {type:'package', id:'package', icon:'📦', label:'Kiện hàng'});
+  });
+
+  updateContainerVisual();
+}
+
+/* Cập nhật trạng thái hiển thị của bao bì */
+function updateContainerVisual(){
+  const el = document.getElementById('container');
+  if(!el) return;
+  const c = state.container;
+  const isBox = c.kind === 'box';
+
+  // Nhãn gợi ý
+  const hint = el.querySelector('#dropHint');
+  if(hint) hint.classList.toggle('hide', state.placed);
+
+  // Filler
+  const fv = el.querySelector('#fillerVis');
+  if(fv) fv.classList.toggle('show', state.fillers.length > 0);
+
+  if(isBox){
+    // Các nắp đã gấp
+    el.querySelectorAll('[data-flap]').forEach(f=>{
+      const name = f.dataset.flap;
+      const folded = state.flaps.indexOf(name) !== -1;
+      if(name === 'left' || name === 'right'){
+        f.classList.toggle('folded-in', folded);
+      } else {
+        f.classList.toggle('folded', folded);
+      }
+    });
+    // Đường nối chỉ hoạt động khi đã gấp đủ 4 nắp
+    const boxClosed = state.flaps.length >= 4;
+    el.querySelectorAll('[data-seam]').forEach(s=>{
+      const done = s.classList.contains('done');
+      s.classList.toggle('active', boxClosed && !done);
+      s.classList.toggle('ready', boxClosed && !done);
+    });
+  } else {
+    // Túi: miệng túi mở cho tới khi dán
+    const mouth = el.querySelector('#bagMouth');
+    if(mouth) mouth.classList.toggle('sealed', state.tapeStrips >= 1);
+    el.querySelectorAll('[data-seam]').forEach(s=>{
+      const done = s.classList.contains('done');
+      s.classList.toggle('active', state.placed && !done);
+      s.classList.toggle('ready', state.placed && !done);
+    });
+  }
+
+  // Cho phép kéo kiện hàng
+  el.classList.toggle('movable', state.tapeCut && !state.weighed && !state.finished);
+}
+
+/* Vị trí sản phẩm khi đã đặt vào bao bì */
+function moveProductIntoContainer(){
+  const c = state.container;
+  const pEl = $('#product');
+  const cx = 450, cy = 268;
+  pEl.style.transition = 'all .5s cubic-bezier(.34,1.2,.5,1), opacity .4s';
+  pEl.style.left = (cx - 55) + 'px';
+  pEl.style.top  = (cy - 55) + 'px';
+  pEl.style.width = '110px';
+  pEl.style.height = '110px';
+  pEl.style.zIndex = 7;
+}
+
+/* ==================================================================
+   11. GỢI Ý BƯỚC HIỆN TẠI
+   ================================================================== */
+function updateHint(){
+  const cur = currentStepId();
+  const hints = {
+    container: ['Chọn bao bì phù hợp', 'Kéo một <b>hộp carton</b> hoặc <b>túi</b> từ kho bên trái vào bàn.'],
+    wrap:      ['Bọc chống sốc', 'Kéo <b>xốp bong bóng</b> từ kho thả lên sản phẩm.'],
+    pack:      ['Đặt sản phẩm vào bao bì', 'Kéo <b>sản phẩm</b> thả vào hộp/túi.'],
+    fill:      ['Lấp khoảng trống', 'Thêm <b>giấy gói</b> hoặc <b>xốp chip</b> để cố định sản phẩm (hoặc bỏ qua).'],
+    fold:      ['Gấp nắp hộp', 'Gấp <b>2 nắp trong (trái/phải)</b> trước, rồi tới <b>2 nắp ngoài (trên/dưới)</b>.'],
+    tape:      ['Dán băng keo', 'Kéo <b>băng keo</b> từ thanh dụng cụ thả lên 3 đường nối được đánh dấu.'],
+    cut:       ['Cắt băng keo', 'Kéo <b>dao rọc giấy</b> hoặc <b>kéo</b> thả lên kiện hàng để cắt phần băng keo thừa.'],
+    label:     ['Dán tem vận chuyển', 'Kéo <b>tem</b> từ thanh dụng cụ thả lên mặt trên kiện hàng.'],
+    weigh:     ['Cân kiện hàng', 'Kéo <b>kiện hàng</b> thả lên bàn cân, sau đó nhập khối lượng hiển thị.'],
+    verify:    ['Kiểm tra cuối', 'Bấm nút bên phải để xem lại và hoàn tất đơn hàng.'],
+    done:      ['Hoàn tất!', 'Kiện hàng đã sẵn sàng giao.']
+  };
+  const h = hints[cur] || hints.done;
+  const steps = getSteps();
+  const idx = steps.findIndex(s=>s.id===cur);
+  $('#hb-num').textContent = idx >= 0 ? (idx+1) : '✓';
+  $('#hb-txt').innerHTML = '<b>' + h[0] + ':</b> ' + h[1];
+  $('#hb-skip').style.display = (cur === 'fill') ? '' : 'none';
+  $('#hb-skip').onclick = ()=>{ state.filled = true; SFX.click(); afterAction(); };
+}
+
+/* ==================================================================
+   12. HỆ THỐNG KÉO / THẢ
+   ================================================================== */
+let dragEl = null;
+
+function beginDrag(ev, payload){
+  if(state.finished) return;
+  ev.preventDefault();
+  SFX.click();
+  AC(); // unlock audio trên mobile
+
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.innerHTML = `<span class="dg-icon">${payload.icon||'📦'}</span><span class="dg-label">${payload.label||''}</span>`;
+  document.body.appendChild(ghost);
+  dragEl = ghost;
+  draggedPayload = payload;
+
+  moveGhost(ev.clientX, ev.clientY);
+
+  document.addEventListener('pointermove', onDragMove, {passive:false});
+  document.addEventListener('pointerup', onDragEnd);
+  document.addEventListener('pointercancel', onDragEnd);
+}
+
+function moveGhost(x, y){
+  if(!dragEl) return;
+  dragEl.style.left = x + 'px';
+  dragEl.style.top  = y + 'px';
+}
+
+function onDragMove(ev){
+  ev.preventDefault();
+  moveGhost(ev.clientX, ev.clientY);
+  // Highlight mục tiêu
+  $$('.drop-hover').forEach(e=>e.classList.remove('drop-hover'));
+  const t = dropTargetAt(ev.clientX, ev.clientY);
+  if(t) t.classList.add('drop-hover');
+}
+
+function dropTargetAt(x, y){
+  const els = document.elementsFromPoint(x, y);
+  for(const el of els){
+    if(el.id === 'container' && state.scaled) continue;
+    const t = el.closest ? el.closest('[data-drop]') : null;
+    if(t && t !== document.getElementById('surface')) return t;
+  }
+  // fallback: bàn
+  const surface = document.getElementById('surface');
+  const r = surface.getBoundingClientRect();
+  if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return surface;
+  return null;
+}
+
+function onDragEnd(ev){
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onDragEnd);
+  document.removeEventListener('pointercancel', onDragEnd);
+  $$('.drop-hover').forEach(e=>e.classList.remove('drop-hover'));
+
+  const target = dropTargetAt(ev.clientX, ev.clientY);
+  if(dragEl){ dragEl.remove(); dragEl = null; }
+  const payload = draggedPayload;
+  draggedPayload = null;
+
+  if(payload && target) handleDrop(payload, target);
+}
+
+/* ==================================================================
+   13. XỬ LÝ THẢ
+   ================================================================== */
+function handleDrop(src, target){
+  const drop = target.dataset.drop;
+
+  /* --- Chọn bao bì --- */
+  if(src.type === 'container'){
+    if(drop === 'bench' || drop === 'container' || drop === 'scale'){
+      chooseContainer(src.id);
+    } else {
+      toast('Hãy thả bao bì xuống khu vực bàn đóng gói.', 'warn');
+    }
+    return;
+  }
+
+  /* --- Bọc chống sốc --- */
+  if(src.type === 'material' && src.id === 'bubble'){
+    if(drop === 'product'){ doWrap(); }
+    else toast('Thả xốp bong bóng lên sản phẩm để bọc.', 'warn');
+    return;
+  }
+
+  /* --- Vật liệu lấp --- */
+  if(src.type === 'material' && (src.id === 'paper' || src.id === 'foam')){
+    if(drop === 'container' || drop === 'bench'){ addFiller(src.id); }
+    else toast('Thả vật liệu vào trong hộp/túi.', 'warn');
+    return;
+  }
+
+  /* --- Đặt sản phẩm vào bao bì --- */
+  if(src.type === 'product'){
+    if(drop === 'container' || drop === 'bench'){ placeProduct(); }
+    else if(drop === 'product'){ /* thả lại chỗ cũ */ }
+    else toast('Hãy thả sản phẩm vào hộp hoặc túi.', 'warn');
+    return;
+  }
+
+  /* --- Dán băng keo --- */
+  if(src.type === 'tool-tape'){
+    if(drop === 'seam'){ applyTape(target); }
+    else toast('Thả băng keo lên đường nối được đánh dấu.', 'warn');
+    return;
+  }
+
+  /* --- Cắt băng keo --- */
+  if(src.type === 'tool-knife'){
+    if(drop === 'container'){ cutTape(); }
+    else toast('Thả dao/kéo lên kiện hàng để cắt băng keo.', 'warn');
+    return;
+  }
+
+  /* --- Dán tem --- */
+  if(src.type === 'tool-label'){
+    if(drop === 'container'){ applyLabel(); }
+    else toast('Thả tem lên mặt trên kiện hàng.', 'warn');
+    return;
+  }
+
+  /* --- Cân --- */
+  if(src.type === 'package'){
+    if(drop === 'scale'){ doWeigh(); }
+    else toast('Kéo kiện hàng thả lên bàn cân điện tử.', 'warn');
+    return;
+  }
+}
+
+/* ==================================================================
+   14. HÀNH ĐỘNG GAME
+   ================================================================== */
+
+/* --- 14.1 Chọn bao bì --- */
+function chooseContainer(id){
+  if(state.placed){ toast('Không thể đổi bao bì khi đã đặt sản phẩm vào.', 'warn'); return; }
+  const c = CONTAINERS.find(x=>x.id===id);
+  if(!c) return;
+
+  const scale = 9;
+  const dispW = clamp(c.inner[0] * scale, 140, 320);
+  const dispH = clamp(c.inner[1] * scale, 118, 270);
+
+  state.container = Object.assign({}, c, {dispW: dispW, dispH: dispH});
+  state.tapeNeeded = (c.kind === 'box') ? 3 : 1;
+
+  SFX.place();
+  buildContainerEl();
+  addScore(6, 'Chọn bao bì');
+  toast('Đã chọn ' + c.name + '.', 'ok');
+  afterAction();
+}
+
+/* --- 14.2 Bọc chống sốc --- */
+function doWrap(){
+  if(!state.container){ toast('Hãy chọn bao bì trước.', 'warn'); return; }
+  if(state.wrapped) return;
+  state.wrapped = true;
+  SFX.wrap();
+  renderProduct();
+  addScore(10, 'Bọc chống sốc');
+  toast('Đã bọc xốp bong bóng quanh sản phẩm.', 'ok');
+  afterAction();
+}
+
+/* --- 14.3 Đặt sản phẩm vào bao bì --- */
+function placeProduct(){
+  if(!state.container){ toast('Chưa có bao bì để đặt sản phẩm vào.', 'err'); return; }
+  if(state.placed) return;
+
+  const p = state.order.product;
+  // Kích thước hiệu dụng (cộng thêm độ dày lớp bọc)
+  const pad = state.wrapped ? 2 : 0;
+  const pd = [p.size[0]+pad, p.size[1]+pad, p.size[2]+pad];
+  const cd = state.container.inner;
+
+  // Kiểm tra vừa
+  const ps = pd.slice().sort((a,b)=>b-a);
+  const cs = cd.slice().sort((a,b)=>b-a);
+  const fits = ps[0]<=cs[0] && ps[1]<=cs[1] && ps[2]<=cs[2];
+
+  if(!fits){
+    SFX.err();
+    addMistake('Sản phẩm không vừa ' + state.container.name + ' (' + ps.join('×') + 'cm > ' + cs.join('×') + 'cm). Hãy chọn bao bì lớn hơn.');
+    toast('❌ Sản phẩm không vừa! Cần bao bì lớn hơn.', 'err', 3200);
+    return;
+  }
+
+  // Kiểm tra loại bao bì phù hợp
+  if(state.container.kind === 'bag' && !p.bagOk){
+    addMistake(p.name + ' không nên đóng bằng túi — dễ bị móp/hỏng. Cần dùng hộp carton.');
+    toast('⚠️ Loại sản phẩm này nên đóng hộp carton!', 'warn', 3000);
+  }
+  if(state.container.kind === 'box' && !p.boxOk){
+    addMistake('Sản phẩm chỉ phù hợp đóng túi.');
+  }
+
+  state.placed = true;
+  SFX.place();
+  moveProductIntoContainer();
+  setTimeout(()=>{ $('#product').classList.add('placed'); }, 120);
+
+  addScore(10, 'Đặt sản phẩm');
+  toast('Đã đặt sản phẩm vào ' + state.container.name + '.', 'ok');
+  afterAction();
+}
+
+/* --- 14.4 Thêm vật liệu lấp --- */
+function addFiller(id){
+  if(!state.placed){ toast('Hãy đặt sản phẩm vào bao bì trước.', 'warn'); return; }
+  if(state.flaps.length >= 4 || state.tapeStrips > 0){
+    toast('Không thể thêm vật liệu — hộp đã đóng.', 'warn'); return;
+  }
+  if(state.fillers.length >= 3){ toast('Đã đủ vật liệu lấp rồi.', 'warn'); return; }
+
+  state.fillers.push(id);
+  state.filled = true;
+  SFX.cardboard();
+  updateContainerVisual();
+  addScore(5, 'Thêm ' + MATERIALS[id].name);
+  toast('Đã thêm ' + MATERIALS[id].name + '.', 'ok');
+  afterAction();
+}
+
+/* --- 14.5 Gấp nắp hộp --- */
+const FLAP_ORDER = ['left','right','top','bottom'];
+const FLAP_NAMES = {left:'nắp trái', right:'nắp phải', top:'nắp trên', bottom:'nắp dưới'};
+
+function foldFlap(name){
+  if(!state.container || state.container.kind !== 'box') return;
+  if(state.flaps.indexOf(name) !== -1) return;
+  if(state.tapeStrips > 0) return;
+
+  const expected = FLAP_ORDER[state.flaps.length];
+  if(name !== expected){
+    SFX.err();
+    addMistake('Gấp sai thứ tự: phải gấp ' + FLAP_NAMES[expected] + ' trước ' + FLAP_NAMES[name] + '.');
+    toast('❌ Sai thứ tự! Gấp ' + FLAP_NAMES[expected] + ' trước.', 'err', 2600);
+    return;
+  }
+
+  state.flaps.push(name);
+  SFX.fold();
+  updateContainerVisual();
+  renderSteps();
+
+  if(state.flaps.length >= 4){
+    SFX.ok();
+    toast('✅ Đã gấp xong 4 nắp. Giờ dán băng keo 3 đường nối.', 'ok', 3000);
+    addScore(12, 'Gấp nắp hộp');
+  }
+  afterAction();
+}
+
+/* --- 14.6 Dán băng keo --- */
+function applyTape(seamEl){
+  if(seamEl.classList.contains('done')) return;
+  if(state.container.kind === 'box' && state.flaps.length < 4){
+    toast('Phải gấp đủ 4 nắp trước khi dán băng keo.', 'warn'); return;
+  }
+
+  seamEl.classList.add('done');
+  if(seamEl.dataset.seam === 'l' || seamEl.dataset.seam === 'r') seamEl.classList.add('vertical');
+  seamEl.classList.remove('active','ready');
+  state.tapeStrips++;
+
+  SFX.tape();
+  addScore(6, 'Dán băng keo');
+  updateContainerVisual();
+
+  if(state.tapeStrips >= state.tapeNeeded){
+    SFX.ok();
+    toast('✅ Đã dán kín. Dùng dao/kéo cắt phần băng keo thừa.', 'ok', 3000);
+  }
+  afterAction();
+}
+
+/* --- 14.7 Cắt băng keo --- */
+function cutTape(){
+  if(state.tapeStrips < state.tapeNeeded){ toast('Chưa dán đủ băng keo.', 'warn'); return; }
+  if(state.tapeCut) return;
+  state.tapeCut = true;
+  SFX.cut();
+  addScore(6, 'Cắt băng keo');
+  toast('✂️ Đã cắt băng keo gọn gàng.', 'ok');
+  updateContainerVisual();
+  afterAction();
+}
+
+/* --- 14.8 Dán tem vận chuyển --- */
+function applyLabel(){
+  if(!state.tapeCut){ toast('Hãy cắt băng keo thừa trước.', 'warn'); return; }
+  if(state.labelDone) return;
+
+  state.labelDone = true;
+  SFX.tape();
+
+  const c = state.container;
+  const lbl = $('#labelEl');
+  lbl.style.display = 'block';
+  lbl.style.left = (450 - c.dispW/2 + 14) + 'px';
+  lbl.style.top  = (268 - c.dispH/2 + 14) + 'px';
+  lbl.innerHTML = `
+    <div class="lbl-bars">${Array.from({length:22},()=>'<i style="width:'+(Math.random()>.5?1:2)+'px"></i>').join('')}</div>
+    <div class="lbl-row"><span>MÃ ĐƠN</span><span>${state.order.id}</span></div>
+    <div class="lbl-addr">
+      <b>${state.order.dest.toUpperCase()}</b><br>
+      Người nhận: KHÁCH HÀNG<br>
+      Khối lượng: ${fmtW(state.order.weight)} kg<br>
+      SP: ${state.order.product.name} ×${state.order.qty}
+    </div>`;
+  lbl.style.animation = 'tapeDrop .35s ease';
+
+  addScore(6, 'Dán tem');
+  toast('🏷️ Đã dán tem vận chuyển.', 'ok');
+  afterAction();
+}
+
+/* --- 14.9 Cân kiện hàng --- */
+function doWeigh(){
+  if(!state.tapeCut){ toast('Hãy hoàn tất đóng gói trước.', 'warn'); return; }
+  if(state.weighed) return;
+
+  // Tính khối lượng thực tế
+  let w = state.container.weight + state.order.weight + MATERIALS.tape.weight + MATERIALS.label.weight;
+  if(state.wrapped) w += MATERIALS.bubble.weight;
+  state.fillers.forEach(f=> w += MATERIALS[f].weight);
+  state.measuredWeight = +w.toFixed(2);
+
+  // Di chuyển kiện hàng lên cân
+  const el = document.getElementById('container');
+  if(el){
+    el.style.transition = 'all .6s cubic-bezier(.34,1.2,.5,1)';
+    el.style.left = (678 + 98 - state.container.dispW*0.28) + 'px';
+    el.style.top  = (404 + 30 - state.container.dispH*0.28) + 'px';
+    el.style.transform = 'scale(0.56)';
+    el.style.transformOrigin = 'top left';
+    el.style.zIndex = 20;
+  }
+  state.scaled = true;
+  $('#labelEl').style.transition = 'all .6s cubic-bezier(.34,1.2,.5,1)';
+  $('#labelEl').style.transform = 'scale(0.56)';
+  $('#labelEl').style.transformOrigin = 'top left';
+
+  SFX.place();
+  $('#scale-val').textContent = fmtW(state.measuredWeight);
+  $('#scale').style.boxShadow = '0 0 0 3px rgba(240,161,58,.4), 0 12px 26px rgba(0,0,0,.5)';
+  setTimeout(()=>{ $('#scale').style.boxShadow = ''; }, 900);
+
+  addScore(5, 'Đặt lên cân');
+  afterAction();
+
+  // Hiện modal nhập khối lượng
+  setTimeout(showWeighModal, 700);
+}
+
+function showWeighModal(){
+  showModal(`
+    <div class="modal-hd">
+      <h2>⚖️ Xác nhận khối lượng</h2>
+      <p>Đọc số hiển thị trên cân điện tử và nhập lại để xác nhận.</p>
+    </div>
+    <div class="modal-bd">
+      <div style="text-align:center;padding:14px 0;background:#0f1319;border-radius:12px;border:1px solid #262d38">
+        <div style="font-size:10px;letter-spacing:2px;color:#66707f">CÂN ĐIỆN TỬ</div>
+        <div style="font-family:'Courier New',monospace;font-size:36px;font-weight:800;color:#4dff9e;text-shadow:0 0 16px rgba(77,255,158,.5);margin-top:4px">
+          ${fmtW(state.measuredWeight)} <span style="font-size:14px">kg</span>
+        </div>
+      </div>
+      <div class="weight-input">
+        <input type="text" id="winput" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        <button id="wconfirm">Xác nhận</button>
+      </div>
+      <div style="font-size:11px;color:#66707f;margin-top:8px;text-align:center">
+        Sai số cho phép ±0.03 kg
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn" id="wskip">Bỏ qua & tiếp tục</button>
+    </div>
+  `);
+
+  const inp = $('#winput');
+  setTimeout(()=>inp.focus(), 100);
+
+  $('#wconfirm').onclick = ()=>{
+    const v = parseFloat(inp.value.replace(',','.'));
+    if(isNaN(v)){ toast('Hãy nhập một con số.', 'err'); return; }
+    const diff = Math.abs(v - state.measuredWeight);
+    if(diff <= 0.03){
+      state.weighed = true;
+      SFX.ok();
+      addScore(8, 'Xác nhận khối lượng');
+      toast('✅ Khối lượng chính xác: ' + fmtW(state.measuredWeight) + ' kg', 'ok');
+    } else {
+      addMistake('Ghi nhận khối lượng sai (nhập ' + fmtW(v) + ' kg, thực tế ' + fmtW(state.measuredWeight) + ' kg).');
+      SFX.err();
+      toast('❌ Khối lượng không khớp. Ghi đúng số trên cân.', 'err', 2800);
+      state.weighed = true;
+    }
+    closeModal();
+    afterAction();
+  };
+  inp.addEventListener('keydown', e=>{ if(e.key === 'Enter') $('#wconfirm').click(); });
+
+  $('#wskip').onclick = ()=>{
+    state.weighed = true;
+    closeModal();
+    afterAction();
+  };
+}
+
+/* ==================================================================
+   15. KIỂM TRA CUỐI & TÍNH ĐIỂM
+   ================================================================== */
+
+function openVerify(){
+  if(!state.tapeCut){ toast('Chưa đóng gói xong.', 'warn'); return; }
+  if(!state.weighed){ toast('Hãy cân kiện hàng trước.', 'warn'); return; }
+
+  const o = state.order, p = o.product, c = state.container;
+  const isBox = c.kind === 'box';
+
+  const checks = [];
+  checks.push({ok: !!state.placed, txt: 'Sản phẩm đã được đặt vào ' + c.name});
+  if(p.wrap) checks.push({ok: state.wrapped, txt: 'Đã bọc chống sốc (xốp bong bóng)'});
+  if(p.bagOk === false) checks.push({ok: isBox, txt: 'Dùng hộp carton cho ' + p.name});
+  if(p.filler === 'high') checks.push({ok: state.fillers.length >= 2, txt: 'Đủ vật liệu lấp khoảng trống (≥2)'});
+  else if(p.filler === 'med') checks.push({ok: state.fillers.length >= 1, txt: 'Có vật liệu lấp khoảng trống'});
+  if(isBox) checks.push({ok: state.flaps.length >= 4, txt: 'Đã gấp đủ 4 nắp hộp đúng thứ tự'});
+  checks.push({ok: state.tapeStrips >= state.tapeNeeded, txt: 'Đã dán kín ' + state.tapeNeeded + ' đường nối'});
+  checks.push({ok: state.tapeCut, txt: 'Đã cắt băng keo thừa'});
+  checks.push({ok: state.labelDone, txt: 'Tem vận chuyển đã dán đúng mặt trên'});
+  checks.push({ok: state.weighed, txt: 'Đã cân & xác nhận khối lượng'});
+  checks.push({ok: state.mistakes.length === 0, txt: 'Không mắc lỗi trong quá trình đóng gói'});
+
+  const html = `
+    <div class="modal-hd">
+      <h2>🔍 Kiểm tra trước khi hoàn tất</h2>
+      <p>Đơn #${o.id} · ${p.name} ×${o.qty} · Giao ${o.dest}</p>
+    </div>
+    <div class="modal-bd">
+      <ul class="check-list">
+        ${checks.map(ch=>`<li>
+          <span class="ci ${ch.ok?'ok':'bad'}">${ch.ok?'✔':'✖'}</span>
+          <span style="${ch.ok?'':'color:#ff9a9a'}">${ch.txt}</span>
+        </li>`).join('')}
+      </ul>
+      ${state.mistakes.length ? `
+        <div style="margin-top:12px;background:rgba(239,95,95,.09);border:1px solid rgba(239,95,95,.3);border-radius:10px;padding:10px">
+          <div style="font-size:11px;font-weight:800;color:#ff9a9a;letter-spacing:.5px;margin-bottom:5px">LỖI ĐÃ MẮC (${state.mistakes.length})</div>
+          <ul style="list-style:none;font-size:11.5px;color:#e2b3b3;line-height:1.45">
+            ${state.mistakes.map(m=>`<li>• ${m}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+    </div>
+    <div class="modal-ft">
+      <button class="btn" id="v-back">Quay lại sửa</button>
+      <button class="btn primary" id="v-done">✅ Hoàn tất đơn hàng</button>
+    </div>
+  `;
+  showModal(html);
+  $('#v-back').onclick = closeModal;
+  $('#v-done').onclick = ()=>{ closeModal(); finishOrder(); };
+}
+
+function finishOrder(){
+  state.finished = true;
+  SFX.ding();
+  const result = computeScore();
+  saveProgress(result);
+  setTimeout(()=>showScoreModal(result), 320);
+}
+
+/* --- Tính điểm chi tiết --- */
+function computeScore(){
+  const o = state.order, p = o.product, c = state.container;
+  const isBox = c.kind === 'box';
+
+  // 1) Độ chính xác
+  const accuracy = clamp(100 - state.mistakes.length * 14, 0, 100);
+
+  // 2) Độ an toàn
+  let prot = 0;
+  prot += isBox ? 26 : (c.id === 'bbag' ? 18 : 4);
+  if(state.wrapped) prot += 30;
+  if(state.fillers.length >= 2) prot += 26;
+  else if(state.fillers.length === 1) prot += 14;
+  if(state.tapeStrips >= state.tapeNeeded) prot += 10;
+  if(state.labelDone) prot += 4;
+  if(!p.fragile) prot += 8;
+  if(state.container.kind === 'bag' && !p.bagOk) prot -= 25;
+  const safety = clamp(prot, 0, 100);
+
+  // 3) Hiệu quả vật liệu (độ khít)
+  const pv = p.size[0]*p.size[1]*p.size[2] * (state.wrapped ? 1.35 : 1);
+  const cv = c.inner[0]*c.inner[1]*c.inner[2];
+  const ratio = pv / cv;
+  let matScore = ratio > 0.50 ? 100 : ratio > 0.32 ? 86 : ratio > 0.18 ? 66 : 44;
+  if(state.fillers.length > 2) matScore -= 18;
+  if(state.fillers.length === 0 && p.filler === 'high') matScore -= 22;
+  const material = clamp(matScore, 0, 100);
+
+  // 4) Chi phí
+  let cost = c.cost + MATERIALS.tape.cost + MATERIALS.label.cost;
+  if(state.wrapped) cost += MATERIALS.bubble.cost;
+  state.fillers.forEach(f=> cost += MATERIALS[f].cost);
+  state.cost = cost;
+
+  const target = c.cost
+    + (p.wrap ? MATERIALS.bubble.cost : 0)
+    + (p.filler !== 'low' ? MATERIALS.foam.cost : 0)
+    + MATERIALS.tape.cost + MATERIALS.label.cost;
+  const costScore = clamp(100 - Math.max(0, (cost - target) / target * 100) * 0.9, 0, 100);
+
+  // 5) Thời gian
+  const t = (Date.now() - state.t0) / 1000;
+  const limit = 50 + o.qty * 8 + (p.fragile ? 20 : 0) + (isBox ? 12 : 0);
+  const timeScore = clamp(100 - Math.max(0, (t - limit)) / limit * 110, 0, 100);
+
+  // Tổng
+  const total = Math.round(
+    accuracy * 0.25 + safety * 0.25 + material * 0.15 + costScore * 0.15 + timeScore * 0.20
+  );
+
+  let rank = 'D';
+  if(total >= 92) rank = 'S';
+  else if(total >= 80) rank = 'A';
+  else if(total >= 65) rank = 'B';
+  else if(total >= 50) rank = 'C';
+
+  return {
+    total, rank, accuracy, safety, material, costScore, timeScore,
+    time: Math.round(t), cost, weight: state.measuredWeight,
+    mistakes: state.mistakes.slice(),
+    perfect: state.mistakes.length === 0 && total >= 80
+  };
+}
+
+/* --- Modal điểm --- */
+function showScoreModal(r){
+  const colorFor = v => v >= 85 ? '#42c98a' : v >= 65 ? '#f0a13a' : '#ef5f5f';
+  const bar = (label, val) => `
+    <div class="bar-row">
+      <div class="bl"><span>${label}</span><b style="color:${colorFor(val)}">${Math.round(val)}</b></div>
+      <div class="bar-track"><div class="bar-fill" data-w="${val}" style="background:${colorFor(val)}"></div></div>
+    </div>`;
+
+  const html = `
+    <div class="modal-hd" style="text-align:center">
+      <h2>${r.perfect ? '🎉 Đóng gói hoàn hảo!' : '📊 Kết quả đơn hàng'}</h2>
+      <p>Đơn #${state.order.id} · ${state.order.product.name} ×${state.order.qty}</p>
+    </div>
+    <div class="modal-bd">
+      <div class="score-hero">
+        <div class="score-rank">${r.rank}</div>
+        <div class="score-total">${r.total}<small> / 100 điểm</small></div>
+      </div>
+      ${bar('Độ chính xác', r.accuracy)}
+      ${bar('Độ an toàn sản phẩm', r.safety)}
+      ${bar('Hiệu quả vật liệu', r.material)}
+      ${bar('Chi phí', r.costScore)}
+      ${bar('Thời gian', r.timeScore)}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+        <div class="spec"><small>Thời gian</small><b>${Math.floor(r.time/60)}p ${r.time%60}s</b></div>
+        <div class="spec"><small>Chi phí</small><b>${fmt(r.cost)}</b></div>
+        <div class="spec"><small>Khối lượng</small><b>${fmtW(r.weight)} kg</b></div>
+        <div class="spec"><small>Lỗi</small><b style="color:${r.mistakes.length?'#ef5f5f':'#42c98a'}">${r.mistakes.length}</b></div>
+      </div>
+
+      ${r.mistakes.length ? `
+        <div style="margin-top:12px;background:rgba(239,95,95,.08);border:1px solid rgba(239,95,95,.28);border-radius:10px;padding:10px">
+          <div style="font-size:11px;font-weight:800;color:#ff9a9a;margin-bottom:5px">CHI TIẾT LỖI</div>
+          <ul style="list-style:none;font-size:11.5px;color:#e2b3b3;line-height:1.5">
+            ${r.mistakes.map(m=>`<li>• ${m}</li>`).join('')}
+          </ul>
+        </div>` : `
+        <div style="margin-top:12px;text-align:center;font-size:12px;color:#5fdda0">
+          ✅ Không mắc lỗi nào. Kiện hàng đã sẵn sàng giao!
+        </div>`}
+    </div>
+    <div class="modal-ft">
+      ${r.mistakes.length ? '<button class="btn danger" id="s-retry">🔁 Đóng gói lại</button>' : ''}
+      <button class="btn primary" id="s-next">📦 Đơn tiếp theo</button>
+    </div>
+  `;
+  showModal(html);
+
+  // Animate thanh điểm
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{
+      $$('#modal .bar-fill').forEach(el=>{ el.style.width = el.dataset.w + '%'; });
+    }, 80);
+  });
+
+  const retryBtn = $('#s-retry');
+  if(retryBtn) retryBtn.onclick = ()=>{ closeModal(); restartOrder(); };
+  $('#s-next').onclick = ()=>{ closeModal(); newOrder(); };
+}
+
+/* ==================================================================
+   16. LƯU TIẾN TRÌNH (localStorage)
+   ================================================================== */
+const SAVE_KEY = 'packmaster_save_v1';
+
+function loadSave(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return {completed:0, best:0, total:0, orders:[]};
+    const d = JSON.parse(raw);
+    return {
+      completed: d.completed || 0,
+      best: d.best || 0,
+      total: d.total || 0,
+      orders: Array.isArray(d.orders) ? d.orders.slice(-20) : []
+    };
+  }catch(e){ return {completed:0, best:0, total:0, orders:[]}; }
+}
+
+function saveProgress(r){
+  const s = loadSave();
+  s.completed += 1;
+  s.total += r.total;
+  s.best = Math.max(s.best, r.total);
+  s.orders.push({
+    id: state.order.id,
+    score: r.total,
+    rank: r.rank,
+    product: state.order.product.name,
+    time: r.time,
+    at: Date.now()
+  });
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(s)); }catch(e){}
+  updateHeader();
+}
+
+function updateHeader(){
+  const s = loadSave();
+  $('#hdr-order').textContent = state.order ? state.order.id : '—';
+  $('#hdr-score').textContent = s.completed
+    ? Math.round(s.total / s.completed) + ' (' + s.completed + ')'
+    : '0';
+}
+
+/* ==================================================================
+   17. ĐỒNG HỒ
+   ================================================================== */
+setInterval(()=>{
+  if(!state.t0 || state.finished) return;
+  const t = Math.floor((Date.now() - state.t0) / 1000);
+  const m = String(Math.floor(t/60)).padStart(2,'0');
+  const sec = String(t%60).padStart(2,'0');
+  $('#hdr-time').textContent = m + ':' + sec;
+}, 500);
+
+/* ==================================================================
+   18. ĐIỂM PHỤ & LỖI
+   ================================================================== */
+let bonusPoints = 0;
+
+function addScore(pts, reason){
+  bonusPoints += pts;
+  // Điểm hiển thị tạm thời trên header
+  const s = loadSave();
+  const base = s.completed ? Math.round(s.total / s.completed) : 0;
+  $('#hdr-score').textContent = Math.min(100, base + Math.round(bonusPoints * 0.3)) + (s.completed ? ' (' + s.completed + ')' : '');
+}
+
+function addMistake(msg){
+  state.mistakes.push(msg);
+  updateHeader();
+}
+
+/* ==================================================================
+   19. TOAST & MODAL
+   ================================================================== */
+function toast(msg, type, dur){
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || '');
+  el.innerHTML = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{
+    el.classList.add('out');
+    setTimeout(()=>el.remove(), 300);
+  }, dur || 2600);
+}
+
+function showModal(html){
+  $('#modal').innerHTML = html;
+  $('#overlay').classList.add('show');
+}
+function closeModal(){
+  $('#overlay').classList.remove('show');
+}
+
+/* ==================================================================
+   20. CẬP NHẬT SAU MỖI HÀNH ĐỘNG
+   ================================================================== */
+function afterAction(){
+  renderSteps();
+  refreshStockAvailability();
+  refreshToolbar();
+  updateHint();
+  updateContainerVisual();
+  updateHeader();
+
+  // Tự động mở hộp kiểm tra khi tới bước verify
+  if(currentStepId() === 'verify' && !state.finished){
+    setTimeout(()=>{
+      if(currentStepId() === 'verify') openVerify();
+    }, 350);
+  }
+}
+
+/* ==================================================================
+   21. VÒNG ĐỜI ĐƠN HÀNG
+   ================================================================== */
+function newOrder(){
+  // Reset trạng thái
+  const old = document.getElementById('container');
+  if(old) old.remove();
+  const lbl = $('#labelEl');
+  lbl.style.display = 'none';
+  lbl.style.transform = '';
+  lbl.style.transition = '';
+
+  Object.assign(state, {
+    order: makeOrder(),
+    container: null,
+    wrapped: false,
+    placed: false,
+    fillers: [],
+    flaps: [],
+    tapeStrips: 0,
+    tapeNeeded: 0,
+    tapeCut: false,
+    labelDone: false,
+    weighed: false,
+    measuredWeight: 0,
+    filled: false,
+    mistakes: [],
+    finished: false,
+    scaled: false,
+    cost: 0,
+    t0: Date.now()
+  });
+  bonusPoints = 0;
+
+  // Reset sản phẩm về vị trí ban đầu
+  const pEl = $('#product');
+  pEl.style.transition = 'none';
+  pEl.style.left = '52px';
+  pEl.style.top = '200px';
+  pEl.style.width = '136px';
+  pEl.style.height = '136px';
+  pEl.style.zIndex = 8;
+  pEl.style.opacity = '';
+  pEl.classList.remove('placed','wrapped');
+  requestAnimationFrame(()=>{ pEl.style.transition = ''; });
+
+  $('#scale-val').textContent = '0.00';
+  $('#hdr-time').textContent = '00:00';
+
+  renderOrder();
+  renderProduct();
+  renderStock();
+  renderToolbar();
+  afterAction();
+  updateHeader();
+
+  toast('📥 Đơn hàng mới #' + state.order.id + ' — ' + state.order.product.name, 'ok', 3200);
+}
+
+function restartOrder(){
+  // Chơi lại cùng đơn hàng
+  const o = state.order;
+  const old = document.getElementById('container');
+  if(old) old.remove();
+  const lbl = $('#labelEl');
+  lbl.style.display = 'none';
+  lbl.style.transform = '';
+  lbl.style.transition = '';
+
+  Object.assign(state, {
+    container: null,
+    wrapped: false,
+    placed: false,
+    fillers: [],
+    flaps: [],
+    tapeStrips: 0,
+    tapeNeeded: 0,
+    tapeCut: false,
+    labelDone: false,
+    weighed: false,
+    measuredWeight: 0,
+    filled: false,
+    mistakes: [],
+    finished: false,
+    scaled: false,
+    cost: 0,
+    t0: Date.now()
+  });
+  bonusPoints = 0;
+
+  const pEl = $('#product');
+  pEl.style.transition = 'none';
+  pEl.style.left = '52px';
+  pEl.style.top = '200px';
+  pEl.style.width = '136px';
+  pEl.style.height = '136px';
+  pEl.style.zIndex = 8;
+  pEl.classList.remove('placed','wrapped');
+  requestAnimationFrame(()=>{ pEl.style.transition = ''; });
+
+  $('#scale-val').textContent = '0.00';
+  $('#hdr-time').textContent = '00:00';
+
+  renderOrder();
+  renderProduct();
+  renderStock();
+  renderToolbar();
+  afterAction();
+
+  toast('🔁 Bắt đầu đóng gói lại đơn #' + o.id, 'warn', 2600);
+}
+
+/* ==================================================================
+   22. HƯỚNG DẪN
+   ================================================================== */
+function showHelp(){
+  const s = loadSave();
+  showModal(`
+    <div class="modal-hd">
+      <h2>📖 Hướng dẫn đóng gói</h2>
+      <p>Kéo & thả để hoàn thành từng bước</p>
+    </div>
+    <div class="modal-bd">
+      <div style="font-size:12.5px;line-height:1.7;color:#b9c2d0">
+        <p><b style="color:#f0a13a">1. Chọn bao bì</b> — Kéo hộp carton hoặc túi từ kho bên trái xuống bàn. Hộp quá nhỏ sẽ không chứa được sản phẩm.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">2. Bọc chống sốc</b> — Với hàng dễ vỡ, kéo <b>xốp bong bóng</b> thả lên sản phẩm.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">3. Đặt vào bao bì</b> — Kéo sản phẩm thả vào hộp/túi.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">4. Lấp khoảng trống</b> — Thêm giấy gói hoặc xốp chip để sản phẩm không bị xóc.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">5. Gấp nắp</b> — Gấp 2 nắp trong (trái/phải) trước, rồi 2 nắp ngoài (trên/dưới).</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">6. Dán băng keo</b> — Kéo băng keo từ thanh dụng cụ thả lên 3 đường nối.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">7. Cắt băng keo</b> — Kéo dao rọc hoặc kéo thả lên kiện hàng.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">8. Dán tem</b> — Kéo tem vận chuyển thả lên mặt trên kiện hàng.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">9. Cân</b> — Kéo kiện hàng lên cân điện tử và nhập khối lượng hiển thị.</p>
+        <p style="margin-top:8px"><b style="color:#f0a13a">10. Hoàn tất</b> — Kiểm tra lại và xác nhận.</p>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2e3542;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+        <div><div style="font-size:20px;font-weight:800;color:#f0a13a">${s.completed}</div><div style="font-size:10px;color:#8b95a7">ĐƠN HOÀN THÀNH</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#42c98a">${s.best}</div><div style="font-size:10px;color:#8b95a7">ĐIỂM CAO NHẤT</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#4ea1ff">${s.completed ? Math.round(s.total/s.completed) : 0}</div><div style="font-size:10px;color:#8b95a7">ĐIỂM TRUNG BÌNH</div></div>
+      </div>
+      <div style="margin-top:12px;text-align:center">
+        <button class="btn" id="h-reset" style="font-size:11px;padding:7px">Xoá tiến trình đã lưu</button>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn primary" id="h-close">Đã hiểu</button>
+    </div>
+  `);
+  $('#h-close').onclick = closeModal;
+  $('#h-reset').onclick = ()=>{
+    try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+    updateHeader();
+    toast('Đã xoá tiến trình.', 'warn');
+    closeModal();
+  };
+}
+
+/* ==================================================================
+   23. GẮN SỰ KIỆN UI
+   ================================================================== */
+$('#btn-sound').addEventListener('click', function(){
+  soundOn = !soundOn;
+  this.textContent = soundOn ? '🔊' : '🔇';
+  this.classList.toggle('off', !soundOn);
+  if(soundOn){ AC(); SFX.click(); }
+  try{ localStorage.setItem('packmaster_sound', soundOn ? '1' : '0'); }catch(e){}
+});
+
+$('#btn-help').addEventListener('click', showHelp);
+
+// Zoom & xoay
+$('#vc-in').addEventListener('click', ()=>{ viewZoom = clamp(viewZoom * 1.15, 0.6, 2.2); applyView(); SFX.click(); });
+$('#vc-out').addEventListener('click', ()=>{ viewZoom = clamp(viewZoom / 1.15, 0.6, 2.2); applyView(); SFX.click(); });
+$('#vc-rot').addEventListener('click', ()=>{
+  viewRot = viewRot >= 16 ? 0 : viewRot + 8;
+  applyView(); SFX.click();
+});
+$('#vc-reset').addEventListener('click', ()=>{ viewZoom = 1; viewRot = 0; applyView(); SFX.click(); });
+
+// Tab mobile
+$$('#mobile-tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const t = b.dataset.tab;
+    document.body.dataset.tab = (document.body.dataset.tab === t) ? '' : t;
+    $$('#mobile-tabs button').forEach(x=>x.classList.toggle('active', x.dataset.tab === document.body.dataset.tab));
+    SFX.click();
+  });
+});
+
+// Phóng to bằng con lăn chuột
+$('#viewport').addEventListener('wheel', ev=>{
+  ev.preventDefault();
+  viewZoom = clamp(viewZoom * (ev.deltaY > 0 ? 0.92 : 1.08), 0.6, 2.2);
+  applyView();
+}, {passive:false});
+
+// Đóng modal khi click ra ngoài (chỉ với 1 số modal)
+$('#overlay').addEventListener('click', ev=>{
+  if(ev.target === $('#overlay')){ /* không đóng tự động để tránh mất dữ liệu */ }
+});
+
+// Chặn context menu khi kéo
+document.addEventListener('contextmenu', e=>{
+  if(e.target.closest('#surface') || e.target.closest('.stock-item') || e.target.closest('.tool')) e.preventDefault();
+});
+
+/* ==================================================================
+   24. KHỞI ĐỘNG
+   ================================================================== */
+function init(){
+  // Khôi phục cài đặt âm thanh
+  try{
+    const sv = localStorage.getItem('packmaster_sound');
+    if(sv === '0'){ soundOn = false; $('#btn-sound').textContent = '🔇'; $('#btn-sound').classList.add('off'); }
+  }catch(e){}
+
+  renderStock();
+  renderToolbar();
+
+  // Đợi layout xong mới tính scale
+  setTimeout(()=>{
+    applyView();
+    newOrder();
+  }, 60);
+}
+
+window.addEventListener('load', init);
+// Nếu load đã xong trước khi script chạy
+if(document.readyState === 'complete'){ setTimeout(init, 30); }
+
+})();
+</script>
+</body>
+</html>
